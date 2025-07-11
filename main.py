@@ -13,12 +13,17 @@ def scrape_aspen_dealers():
         page.goto("https://www.aspenfuels.us/outlets/find-dealer/", timeout=60000)
 
         print("⏳ Waiting for dealer data to load...")
+        # Wait up to 60 seconds for the container where dealer data is rendered
+        page.wait_for_selector("#storeLocator", timeout=60000)
+
+        print("✅ Dealer page structure loaded. Checking JS variable...")
+        # Now confirm the JS variable is populated (this avoids hard timeout failure)
         page.wait_for_function(
             "window.storeLocator && window.storeLocator.locations && window.storeLocator.locations.length > 0",
-            timeout=30000  # Increased from 15s to 30s
+            timeout=60000
         )
 
-        print("✅ Dealer data found! Extracting...")
+        print("📦 Extracting dealer data...")
         dealer_data = page.evaluate("""
             () => {
                 return window.storeLocator.locations.map(loc => ({
