@@ -1,27 +1,36 @@
 import pandas as pd
 from playwright.sync_api import sync_playwright
+import subprocess
+
+# Ensure Playwright and Chromium are installed
+subprocess.run(["playwright", "install", "chromium"], check=True)
 
 def scrape_aspen_dealers():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
+        print("➡️ Visiting Aspen dealer locator...")
         page.goto("https://www.aspenfuels.us/outlets/find-dealer/", timeout=60000)
-        page.wait_for_timeout(8000)
 
-        # Extract raw dealer data from map markers
+        print("⏳ Waiting for dealer data to load...")
+        page.wait_for_function(
+            "window.storeLocator && window.storeLocator.locations && window.storeLocator.locations.length > 0",
+            timeout=30000  # Increased from 15s to 30s
+        )
+
+        print("✅ Dealer data found! Extracting...")
         dealer_data = page.evaluate("""
             () => {
-                const markers = window.storeLocator?.locations || [];
-                return markers.map(m => ({
-                    name: m.store,
-                    address: m.address,
-                    city: m.city,
-                    state: m.state,
-                    zip: m.zip,
-                    phone: m.phone,
-                    lat: m.lat,
-                    lng: m.lng,
-                    url: m.url
+                return window.storeLocator.locations.map(loc => ({
+                    name: loc.store,
+                    address: loc.address,
+                    city: loc.city,
+                    state: loc.state,
+                    zip: loc.zip,
+                    phone: loc.phone,
+                    lat: loc.lat,
+                    lng: loc.lng,
+                    url: loc.url
                 }));
             }
         """)
@@ -29,7 +38,9 @@ def scrape_aspen_dealers():
         browser.close()
         return dealer_data
 
-data = scrape_aspen_dealers()
-df = pd.DataFrame(data)
-df.to_csv("aspen_us_dealers.csv", index=False)
-print(f"✅ Scraped {len(df)} dealers and saved to aspen_us_dealers.csv")
+if __name__ == "__main__":
+    data = scrape_aspen_dealers()
+    df = pd.DataFrame(data)
+    df.to_csv("aspen_us_dealers.csv", index=False)
+    print(f"✅ Scraped {len(df)} dealers and saved to aspen_us_dealers.csv")
+
