@@ -1,26 +1,34 @@
 import pandas as pd
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 import subprocess
+import sys
 
-# Ensure Chromium is available
-subprocess.run(["playwright", "install", "chromium"], check=True)
+# Ensure Playwright dependencies are installed (only needed locally)
+if __name__ == "__main__" and "playwright" in sys.argv[0]:
+    subprocess.run(["playwright", "install", "chromium"], check=True)
 
 def scrape_aspen_dealers():
     with sync_playwright() as p:
+        print("🚀 Launching browser...")
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
-        print("➡️ Visiting Aspen dealer locator...")
-        page.goto("https://www.aspenfuels.us/outlets/find-dealer/", timeout=60000)
+        print("➡️ Visiting Aspen dealer locator page...")
+        page.goto("https://www.aspenfuels.us/outlets/find-dealer/", timeout=90000)
 
-        print("⏳ Waiting for storeLocator DOM element...")
-        page.wait_for_selector("#storeLocator", timeout=60000)
+        try:
+            print("⏳ Waiting for locator JS variable to populate...")
+            page.wait_for_function(
+                "window.storeLocator && window.storeLocator.locations && window.storeLocator.locations.length > 0",
+                timeout=60000
+            )
+        except PlaywrightTimeoutError:
+            print("❌ Timeout waiting for storeLocator.locations to load.")
+            browser.close()
+            return []
 
-        print("✅ Page structure loaded. Trying to extract dealer JS data...")
+        print("✅ Dealer data detected! Extracting now...")
         dealer_data = page.evaluate("""
             () => {
-                if (!window.storeLocator || !window.storeLocator.locations) {
-                    return [];
-                }
                 return window.storeLocator.locations.map(loc => ({
                     name: loc.store,
                     address: loc.address,
@@ -34,18 +42,15 @@ def scrape_aspen_dealers():
                 }));
             }
         """)
-
         browser.close()
         return dealer_data
 
 if __name__ == "__main__":
-    print("🚀 Starting scrape...")
-    try:
-        data = scrape_aspen_dealers()
+    print("🧹 Starting scrape task...")
+    data = scrape_aspen_dealers()
+    if data:
         df = pd.DataFrame(data)
         df.to_csv("aspen_us_dealers.csv", index=False)
         print(f"✅ Scraped {len(df)} dealers and saved to aspen_us_dealers.csv")
-    except Exception as e:
-        print("❌ Error occurred:", e)
-        raise
-
+    else:
+        print("⚠️ No data scraped.")
