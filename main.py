@@ -1,6 +1,5 @@
 import pandas as pd
 from playwright.sync_api import sync_playwright
-import time
 
 def scrape_aspen_dealers():
     with sync_playwright() as p:
@@ -14,37 +13,39 @@ def scrape_aspen_dealers():
             ]
         )
         page = browser.new_page()
+
+        data = []
+
+        # Intercept API response
+        def handle_response(response):
+            if "locations.json" in response.url and response.status == 200:
+                print("✅ Intercepted dealer data from API...")
+                json_data = response.json()
+                for loc in json_data:
+                    data.append({
+                        "name": loc.get("store"),
+                        "address": loc.get("address"),
+                        "city": loc.get("city"),
+                        "state": loc.get("state"),
+                        "zip": loc.get("zip"),
+                        "phone": loc.get("phone"),
+                        "lat": loc.get("lat"),
+                        "lng": loc.get("lng"),
+                        "url": loc.get("url")
+                    })
+
+        page.on("response", handle_response)
+
         print("➡️ Visiting Aspen dealer locator...")
         page.goto("https://www.aspenfuels.us/outlets/find-dealer/", timeout=60000)
-
-        print("⏳ Waiting for dealer data to load...")
-        page.wait_for_function(
-            "window.storeLocator && window.storeLocator.locations && window.storeLocator.locations.length > 0",
-            timeout=60000
-        )
-
-        print("✅ Dealer data found! Extracting...")
-        dealer_data = page.evaluate("""
-            () => {
-                return window.storeLocator.locations.map(loc => ({
-                    name: loc.store,
-                    address: loc.address,
-                    city: loc.city,
-                    state: loc.state,
-                    zip: loc.zip,
-                    phone: loc.phone,
-                    lat: loc.lat,
-                    lng: loc.lng,
-                    url: loc.url
-                }));
-            }
-        """)
+        page.wait_for_timeout(5000)  # Let the network traffic complete
 
         browser.close()
-        return dealer_data
+        return data
 
 if __name__ == "__main__":
     data = scrape_aspen_dealers()
     df = pd.DataFrame(data)
     df.to_csv("aspen_us_dealers.csv", index=False)
     print(f"✅ Scraped {len(df)} dealers and saved to aspen_us_dealers.csv")
+
