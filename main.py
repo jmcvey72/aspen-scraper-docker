@@ -4,27 +4,26 @@ import time
 
 def scrape_aspen_dealers():
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page()
+        browser = p.chromium.launch(headless=False, args=["--no-sandbox", "--disable-setuid-sandbox"])
+        context = browser.new_context()
+        page = context.new_page()
 
         print("➡️ Visiting Aspen dealer locator...")
-        page.goto("https://www.aspenfuels.us/outlets/find-dealer/", timeout=60000)
+        page.goto("https://www.aspenfuels.us/outlets/find-dealer/", timeout=90000)
 
-        # Wait up to 60 seconds for the JS variable to be populated
-        print("⏳ Waiting for dealer data to load (max 60s)...")
-        for i in range(60):
+        print("⏳ Waiting for JS variable window.storeLocator.locations...")
+        for i in range(90):  # Wait up to 90 seconds
             try:
-                ready = page.evaluate("Boolean(window.storeLocator && window.storeLocator.locations && window.storeLocator.locations.length > 0)")
-                if ready:
+                if page.evaluate("window.storeLocator?.locations?.length > 0"):
                     break
             except:
                 pass
             time.sleep(1)
         else:
-            print("❌ Timeout waiting for storeLocator.locations to load.")
+            print("❌ Timeout: dealer data never loaded.")
             return []
 
-        print("✅ Dealer data found! Extracting...")
+        print("✅ Data found! Extracting...")
         dealer_data = page.evaluate("""
             () => window.storeLocator.locations.map(loc => ({
                 name: loc.store,
@@ -46,7 +45,6 @@ if __name__ == "__main__":
     if data:
         df = pd.DataFrame(data)
         df.to_csv("aspen_us_dealers.csv", index=False)
-        print(f"✅ Scraped {len(df)} dealers and saved to aspen_us_dealers.csv")
+        print(f"✅ Saved {len(df)} dealers to aspen_us_dealers.csv")
     else:
         print("⚠️ No data scraped.")
-
