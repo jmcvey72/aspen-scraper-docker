@@ -1,9 +1,8 @@
 import pandas as pd
 from playwright.sync_api import sync_playwright
 import subprocess
-import os
 
-# Ensure Playwright and Chromium are installed
+# Ensure Chromium is available
 subprocess.run(["playwright", "install", "chromium"], check=True)
 
 def scrape_aspen_dealers():
@@ -13,15 +12,15 @@ def scrape_aspen_dealers():
         print("➡️ Visiting Aspen dealer locator...")
         page.goto("https://www.aspenfuels.us/outlets/find-dealer/", timeout=60000)
 
-        print("⏳ Waiting for dealer data to load...")
-        page.wait_for_function(
-            "window.storeLocator && window.storeLocator.locations && window.storeLocator.locations.length > 0",
-            timeout=60000
-        )
+        print("⏳ Waiting for storeLocator DOM element...")
+        page.wait_for_selector("#storeLocator", timeout=60000)
 
-        print("✅ Dealer data found! Extracting...")
+        print("✅ Page structure loaded. Trying to extract dealer JS data...")
         dealer_data = page.evaluate("""
             () => {
+                if (!window.storeLocator || !window.storeLocator.locations) {
+                    return [];
+                }
                 return window.storeLocator.locations.map(loc => ({
                     name: loc.store,
                     address: loc.address,
@@ -44,9 +43,8 @@ if __name__ == "__main__":
     try:
         data = scrape_aspen_dealers()
         df = pd.DataFrame(data)
-        output_file = "aspen_us_dealers.csv"
-        df.to_csv(output_file, index=False)
-        print(f"✅ Scraped {len(df)} dealers and saved to {output_file}")
+        df.to_csv("aspen_us_dealers.csv", index=False)
+        print(f"✅ Scraped {len(df)} dealers and saved to aspen_us_dealers.csv")
     except Exception as e:
         print("❌ Error occurred:", e)
         raise
