@@ -1,17 +1,22 @@
-# Use the official Playwright image with all necessary dependencies
-FROM mcr.microsoft.com/playwright/python:v1.44.0-jammy
+# Use Python base image
+FROM python:3.11-slim
 
-# Set working directory inside the container
+# Install dependencies for Playwright
+RUN apt-get update && apt-get install -y \
+    wget curl unzip xvfb \
+    libnss3 libatk1.0-0 libatk-bridge2.0-0 libxcomposite1 libxdamage1 \
+    libxrandr2 libgbm1 libasound2 libpangocairo-1.0-0 libgtk-3-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set workdir and copy files
 WORKDIR /app
+COPY . .
 
-# Copy your project files into the container
-COPY . /app
-
-# Install Python dependencies
+# Install Python deps
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install browser dependencies for Playwright (Chromium, etc.)
-RUN playwright install --with-deps
+# Install Chromium for Playwright
+RUN playwright install chromium
 
-# Set the default command to run your scraper
+# Command to run your scraper
 CMD ["python", "main.py"]
