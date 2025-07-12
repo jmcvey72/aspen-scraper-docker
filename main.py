@@ -8,16 +8,24 @@ def scrape_aspen_dealers():
             args=["--disable-dev-shm-usage", "--no-sandbox", "--disable-setuid-sandbox"]
         )
         page = browser.new_page()
-        data = []
+        scraped_data = []
 
         def handle_response(response):
-            try:
-                if "json" in response.headers.get("content-type", ""):
-                    print(f"\n📡 URL: {response.url}")
+            if "markers/en-US" in response.url and "json" in response.headers.get("content-type", ""):
+                try:
                     json_data = response.json()
-                    print(f"🧾 JSON Preview: {str(json_data)[:500]}")  # show first 500 chars
-            except Exception as e:
-                pass  # skip non-JSON or error responses
+                    for marker in json_data.get("markers", []):
+                        scraped_data.append({
+                            "Dealer Name": marker.get("name", ""),
+                            "Address": marker.get("adress", ""),
+                            "City": marker.get("city", ""),
+                            "Province": marker.get("province", ""),
+                            "Postal Code": marker.get("zip_code", ""),
+                            "Phone": marker.get("phone", ""),
+                            "Website": marker.get("website", ""),
+                        })
+                except Exception as e:
+                    print(f"❌ Failed to parse JSON: {e}")
 
         page.on("response", handle_response)
 
@@ -26,7 +34,7 @@ def scrape_aspen_dealers():
         page.wait_for_timeout(10000)
 
         browser.close()
-        return data
+        return scraped_data
 
 if __name__ == "__main__":
     data = scrape_aspen_dealers()
