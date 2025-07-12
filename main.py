@@ -5,45 +5,25 @@ def scrape_aspen_dealers():
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
-            args=[
-                "--disable-dev-shm-usage",
-                "--no-sandbox",
-                "--disable-setuid-sandbox"
-            ]
+            args=["--disable-dev-shm-usage", "--no-sandbox", "--disable-setuid-sandbox"]
         )
         page = browser.new_page()
         data = []
 
-        # Debug log every response
         def handle_response(response):
-            url = response.url
-            print("📡 Response URL:", url)
-
-            if "locations" in url and response.status == 200:
-                try:
+            try:
+                if "json" in response.headers.get("content-type", ""):
+                    print(f"\n📡 URL: {response.url}")
                     json_data = response.json()
-                    print("✅ Found dealer data!")
-
-                    for loc in json_data:
-                        data.append({
-                            "name": loc.get("store"),
-                            "address": loc.get("address"),
-                            "city": loc.get("city"),
-                            "state": loc.get("state"),
-                            "zip": loc.get("zip"),
-                            "phone": loc.get("phone"),
-                            "lat": loc.get("lat"),
-                            "lng": loc.get("lng"),
-                            "url": loc.get("url")
-                        })
-                except Exception as e:
-                    print("❌ Failed to parse JSON:", e)
+                    print(f"🧾 JSON Preview: {str(json_data)[:500]}")  # show first 500 chars
+            except Exception as e:
+                pass  # skip non-JSON or error responses
 
         page.on("response", handle_response)
 
         print("➡️ Visiting Aspen dealer locator...")
         page.goto("https://www.aspenfuels.us/outlets/find-dealer/", timeout=60000)
-        page.wait_for_timeout(8000)
+        page.wait_for_timeout(10000)
 
         browser.close()
         return data
